@@ -1,0 +1,57 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam linetype polyline
+skinparam usecase {
+  BackgroundColor white
+  BorderColor #1B365D
+}
+
+actor "Graduate Applicant" as Applicant
+actor Administrator
+actor Employer
+
+rectangle "Job Board" {
+  usecase "Submit application" as SubmitApplication
+  usecase "Withdraw application" as WithdrawApplication
+  usecase "View application status\nand history" as ViewStatusHistory
+  usecase "Notify applicant" as NotifyApplicant
+
+  package "Application Management" {
+    usecase "Review application" as ReviewApplication
+    usecase "Transition application status\n<<SPECIAL FEATURE>>" as TransitionStatus #FFF0CC
+    usecase "Attach feedback" as AttachFeedback
+    usecase "Record status history" as RecordHistory
+  }
+
+  package "Listing Management" {
+    usecase "Review listing" as ReviewListing
+    usecase "Publish listing" as PublishListing
+    usecase "Reject listing" as RejectListing
+    usecase "Create job listing" as CreateListing
+    usecase "Revise and resubmit listing" as ReviseResubmitListing
+    usecase "Close/fill listing" as CloseFillListing
+  }
+}
+
+Applicant --> SubmitApplication
+Applicant --> WithdrawApplication
+Applicant --> ViewStatusHistory
+Applicant --> NotifyApplicant
+
+Employer --> ReviewApplication
+Employer --> TransitionStatus
+Employer --> AttachFeedback
+Employer --> CreateListing
+Employer --> ReviseResubmitListing
+Employer --> CloseFillListing
+
+Administrator --> ReviewListing
+Administrator --> PublishListing
+Administrator --> RejectListing
+
+WithdrawApplication ..> TransitionStatus : <<include>>
+ReviewApplication ..> TransitionStatus : <<include>>
+TransitionStatus ..> NotifyApplicant : <<include>>
+TransitionStatus ..> RecordHistory : <<include>>
+@enduml
