@@ -9,8 +9,9 @@ from sqlmodel import Session, select
 from app.database import engine
 from app.models.application import Application
 from app.models.listing import Listing
+from app.services import listings
 from app.services.board_auth import get_user
-from app.services.lifecycle import ACTIONS, apply_action, derived_status_from_flags
+from app.services.lifecycle import ACTIONS, apply_action
 
 
 def apply(
@@ -29,18 +30,33 @@ def apply(
         if listing is None:
             return {"ok": False, "error": "listing not found"}
 
-        # DEFECT: allows apply on pending / expired; external still creates a row
+        if listing.status != "published":
+            return {"ok": False, "error": "listing is not published"}
+        try:
+            deadline = listings._parse_deadline(listing.deadline)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+        if deadline < listings._today():
+            return {"ok": False, "error": "listing deadline has passed"}
+        if listing.apply_mode == "external":
+            error = (
+                f"apply externally at {listing.external_url}"
+                if listing.external_url
+                else "external application URL is unavailable"
+            )
+            return {"ok": False, "error": error}
+        if listing.apply_mode != "collect":
+            return {
+                "ok": False,
+                "error": "listing does not accept on-platform applications",
+            }
+
         resume = resume_text or user.get("resume_text") or ""
         application = Application(
             listing_id=listing_id,
             graduate_id=graduate_id,
             cover_letter=cover_letter,
             resume_text=resume,
-            status="submitted",
-            flag_reviewed=0,
-            flag_shortlisted=0,
-            flag_rejected=0,
-            flag_hired=0,
         )
         session.add(application)
         session.commit()
@@ -48,7 +64,7 @@ def apply(
         return {
             "ok": True,
             "application_id": application.id,
-            "status": "submitted",
+            "status": application.status,
         }
 
 
@@ -59,14 +75,7 @@ def my_applications(graduate_id: int) -> list[dict[str, Any]]:
             .where(Application.graduate_id == graduate_id)
             .order_by(Application.id)
         ).all()
-        results = []
-        for row in rows:
-            app = row.model_dump()
-            # DEFECT: graduate view sometimes uses flag-derived status, not column
-            view = dict(app)
-            view["status"] = derived_status_from_flags(app)
-            results.append(view)
-        return results
+        return [row.model_dump() for row in rows]
 
 
 def listing_applicants(viewer_id: int, listing_id: int) -> dict[str, Any]:
@@ -101,7 +110,7 @@ def export_applicants(admin_id: int, listing_id: int) -> dict[str, Any]:
 def transition_application(
     actor_id: int, application_id: int, action: str
 ) -> dict[str, Any]:
-    """Drive the poorly factored lifecycle module."""
+    """Validate a lifecycle action and persist only a successful change."""
     actor = get_user(actor_id)
     if not actor:
         return {"ok": False, "error": "unknown user"}
@@ -128,10 +137,6 @@ def transition_application(
 
         updated = result["row"]
         row.status = updated["status"]
-        row.flag_reviewed = updated["flag_reviewed"]
-        row.flag_shortlisted = updated["flag_shortlisted"]
-        row.flag_rejected = updated["flag_rejected"]
-        row.flag_hired = updated["flag_hired"]
         session.add(row)
         session.commit()
         session.refresh(row)
