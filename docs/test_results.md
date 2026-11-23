@@ -1,47 +1,36 @@
-# sprint 2 test evidence
+# sprint 2 test results
 
-**task:** #16 - integration tests  
-**branch:** task-16-integration-tests  
-**date:** __________  
+date: november 23, 2026
+
+task 16 - integration tests
 
 ## tests run
 
 command: `python -m pytest tests -q`
 
-- passed: ______
-- failed: ______
-- skipped: ______
-- screenshot: ______
+total tests: 155
+passed: 155
+failed: 0
+warnings: 1
+time taken: 3.91 seconds
+coverage: not measured
 
-command: `python -m pytest tests/test_sprint2_notifications_integration.py -q`
+## what was tested
 
-- passed: ______
-- failed: ______
-- screenshot: ______
+application status changes
+employer permissions
+application history
+listing publication
+application and listing notifications
+duplicate notification checks
+database rollback
 
-## what i tested
+8 new integration tests were added.
 
-- valid and invalid application status changes
-- employer permissions
-- application status history
-- listing approval and resubmission
-- application and listing notifications
-- duplicate notification checks
-- rollback when saving a notification fails
+all 155 tests passed with no failures. the warning came from the testing library.
 
-## coverage
+## github
 
-coverage command (only if pytest-cov is installed): `python -m pytest tests --cov=app --cov-report=term-missing`
+pr: https://github.com/Mark-Mooradan/comp3613-job-board/pull/4
 
-coverage result: ______ or not measured
-
-## github evidence
-
-- task #14 pr: ______
-- task #16 pr: ______
-- reviewer: ______
-- merge status: ______
-
-## any problems left
-
-______
+review requested from kayden.

@@ -65,7 +65,7 @@ def subscribe(graduate_id: int) -> dict[str, Any]:
     user = get_user(graduate_id)
     if not user or user["role"] != "graduate":
         return {"ok": False, "error": "graduates only"}
-    # DEFECT: no programme eligibility check
+    
     if user.get("programme") not in ELIGIBLE_PROGRAMMES:
         return {"ok": False, "error": "programme not eligible"}
     with Session(engine) as session:
@@ -180,7 +180,7 @@ def publish_listing(admin_id: int, listing_id: int) -> dict[str, Any]:
             {"listing_id": listing.id, "title": listing.title, "company": listing.company},
         )
         session.commit()
-    # DEFECT: publish does not notify subscribers
+    
     return {"ok": True, "notified": count > 0}
 
 
