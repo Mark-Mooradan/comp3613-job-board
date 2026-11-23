@@ -27,7 +27,7 @@ def apply(
     user = get_user(graduate_id)
     if not user or user["role"] != "graduate":
         return {"ok": False, "error": "graduates only"}
-    # DEFECT: no programme eligibility check
+    
     if user.get("programme") not in ELIGIBLE_PROGRAMMES:
         return {"ok": False, "error": "programme not eligible"}
 
