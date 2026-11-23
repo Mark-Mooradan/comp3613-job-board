@@ -9,6 +9,7 @@ from sqlalchemy import event
 from sqlmodel import Session, select
 
 from app.models.application import Application
+from app.models.application_status_history import ApplicationStatusHistory
 from app.models.listing import Listing
 from app.models.user import User
 from app.routers.board import router
@@ -361,3 +362,89 @@ def test_admin_can_view_but_cannot_transition_applications(service_engine):
 
     assert viewed == {"ok": True, "applicants": [original]}
     assert transitioned == {"ok": False, "error": "forbidden"}
+
+
+def test_successful_transition_persists_history(service_engine):
+    original = save_application(service_engine)
+
+    result = applications.transition_application(
+        EMPLOYER_ID, original["id"], "mark_reviewed"
+    )
+
+    assert result["ok"] is True
+    with Session(service_engine) as session:
+        history = session.exec(
+            select(ApplicationStatusHistory)
+            .where(ApplicationStatusHistory.application_id == original["id"])
+        ).all()
+
+    assert len(history) == 1
+    assert history[0].application_id == original["id"]
+    assert history[0].previous_status == "submitted"
+    assert history[0].new_status == "reviewed"
+    assert history[0].actor_id == EMPLOYER_ID
+    assert history[0].timestamp is not None
+
+
+@pytest.mark.parametrize(
+    "status,action,actor_id",
+    [
+        ("submitted", "hire", EMPLOYER_ID),
+        ("submitted", "mark_reviewed", OTHER_EMPLOYER_ID),
+        ("submitted", "mark_reviewed", ADMIN_ID),
+        ("submitted", "mark_reviewed", GRADUATE_ID),
+    ],
+)
+def test_failed_or_unauthorized_transition_creates_no_history(
+    service_engine, status, action, actor_id
+):
+    original = save_application(service_engine, status)
+
+    result = applications.transition_application(
+        actor_id, original["id"], action
+    )
+
+    assert result["ok"] is False
+    with Session(service_engine) as session:
+        history = session.exec(
+            select(ApplicationStatusHistory)
+            .where(ApplicationStatusHistory.application_id == original["id"])
+        ).all()
+    assert history == []
+
+
+@pytest.mark.parametrize(
+    "actor_id",
+    [EMPLOYER_ID, GRADUATE_ID, ADMIN_ID],
+)
+def test_authorized_history_view_is_exposed(service_engine, actor_id):
+    original = save_application(service_engine)
+    applications.transition_application(
+        EMPLOYER_ID, original["id"], "mark_reviewed"
+    )
+
+    result = applications.application_history(actor_id, original["id"])
+
+    assert result["ok"] is True
+    assert len(result["history"]) == 1
+    assert result["history"][0]["previous_status"] == "submitted"
+    assert result["history"][0]["new_status"] == "reviewed"
+    assert result["history"][0]["actor_id"] == EMPLOYER_ID
+
+
+def test_history_route_returns_entry(service_engine):
+    original = save_application(service_engine)
+    applications.transition_application(
+        EMPLOYER_ID, original["id"], "mark_reviewed"
+    )
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+
+    with TestClient(app) as client:
+        response = client.get(
+            f"/api/applications/{original['id']}/history",
+            params={"actor_id": GRADUATE_ID},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["history"][0]["new_status"] == "reviewed"

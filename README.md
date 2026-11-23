@@ -48,3 +48,7 @@ session or JWT. This is not a substitute for real authentication, but every
 listing/applicant operation still performs server-side role and ownership
 checks. A status transition requires an employer whose ID equals the listing's
 `employer_id`; administrators cannot transition applications.
+
+Successful application status changes are written atomically to
+`ApplicationStatusHistory`, including the previous status, new status, actor,
+and UTC timestamp. Failed or unchanged transitions do not create history.
