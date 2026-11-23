@@ -39,3 +39,16 @@ See [`ASSIGNMENT.md`](ASSIGNMENT.md) and [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.
 ```bash
 python -m pytest tests -q
 ```
+
+## Authorization demo limitation
+
+The scenario API is a development demo: acting identities are supplied by the
+request body/query as `actor_id`; it does not derive identity from a login
+session or JWT. This is not a substitute for real authentication, but every
+listing/applicant operation still performs server-side role and ownership
+checks. A status transition requires an employer whose ID equals the listing's
+`employer_id`; administrators cannot transition applications.
+
+Successful application status changes are written atomically to
+`ApplicationStatusHistory`, including the previous status, new status, actor,
+and UTC timestamp. Failed or unchanged transitions do not create history.

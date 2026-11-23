@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from app.database import engine
 from app.models.application import Application
+from app.models.application_status_history import ApplicationStatusHistory
 from app.models.listing import Listing
 from app.services import listings
 from app.services.board_auth import get_user
@@ -86,8 +87,9 @@ def listing_applicants(viewer_id: int, listing_id: int) -> dict[str, Any]:
         listing = session.get(Listing, listing_id)
         if listing is None:
             return {"ok": False, "error": "listing not found"}
-        # DEFECT (IDOR): ownership not checked for employers
         if viewer["role"] not in {"employer", "admin"}:
+            return {"ok": False, "error": "forbidden"}
+        if viewer["role"] == "employer" and viewer_id != listing.employer_id:
             return {"ok": False, "error": "forbidden"}
         rows = session.exec(
             select(Application)
@@ -114,8 +116,7 @@ def transition_application(
     actor = get_user(actor_id)
     if not actor:
         return {"ok": False, "error": "unknown user"}
-    # DEFECT: admin may transition; any employer may transition any application
-    if actor["role"] not in {"employer", "admin"}:
+    if actor["role"] != "employer":
         return {"ok": False, "error": "forbidden"}
     if action not in ACTIONS:
         return {"ok": False, "error": f"action must be one of {ACTIONS}"}
@@ -124,6 +125,11 @@ def transition_application(
         row = session.get(Application, application_id)
         if row is None:
             return {"ok": False, "error": "application not found"}
+        listing = session.get(Listing, row.listing_id)
+        if listing is None:
+            return {"ok": False, "error": "listing not found"}
+        if actor_id != listing.employer_id:
+            return {"ok": False, "error": "forbidden"}
 
         result = apply_action(row.model_dump(), action)
         if not result.get("ok"):
@@ -136,8 +142,51 @@ def transition_application(
             }
 
         updated = result["row"]
+        previous_status = row.status
         row.status = updated["status"]
         session.add(row)
+        session.add(
+            ApplicationStatusHistory(
+                application_id=application_id,
+                previous_status=previous_status,
+                new_status=row.status,
+                actor_id=actor_id,
+            )
+        )
         session.commit()
         session.refresh(row)
         return {"ok": True, "application": row.model_dump(), "changed": True}
+
+
+def application_history(viewer_id: int, application_id: int) -> dict[str, Any]:
+    viewer = get_user(viewer_id)
+    if not viewer:
+        return {"ok": False, "error": "unknown user"}
+
+    with Session(engine) as session:
+        application = session.get(Application, application_id)
+        if application is None:
+            return {"ok": False, "error": "application not found"}
+
+        listing = session.get(Listing, application.listing_id)
+        if listing is None:
+            return {"ok": False, "error": "listing not found"}
+
+        is_applicant = (
+            viewer["role"] == "graduate"
+            and viewer_id == application.graduate_id
+        )
+        is_listing_owner = (
+            viewer["role"] == "employer"
+            and viewer_id == listing.employer_id
+        )
+        is_admin = viewer["role"] == "admin"
+        if not (is_applicant or is_listing_owner or is_admin):
+            return {"ok": False, "error": "forbidden"}
+
+        rows = session.exec(
+            select(ApplicationStatusHistory)
+            .where(ApplicationStatusHistory.application_id == application_id)
+            .order_by(ApplicationStatusHistory.timestamp, ApplicationStatusHistory.id)
+        ).all()
+        return {"ok": True, "history": [row.model_dump() for row in rows]}

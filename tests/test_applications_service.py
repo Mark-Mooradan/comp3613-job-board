@@ -3,15 +3,21 @@
 from datetime import date
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from sqlalchemy import event
 from sqlmodel import Session, select
 
 from app.models.application import Application
+from app.models.application_status_history import ApplicationStatusHistory
 from app.models.listing import Listing
 from app.models.user import User
+from app.routers.board import router
 from app.services import applications, board_auth, listings
 
 EMPLOYER_ID = 1
+OTHER_EMPLOYER_ID = 4
+ADMIN_ID = 5
 GRADUATE_ID = 2
 OTHER_GRADUATE_ID = 3
 LISTING_ID = 1
@@ -50,6 +56,20 @@ def service_engine(test_session, monkeypatch):
                 password="unused",
                 role="graduate",
                 programme="DCIT",
+            ),
+            User(
+                id=OTHER_EMPLOYER_ID,
+                username="other-employer",
+                email="other-employer@example.com",
+                password="unused",
+                role="employer",
+            ),
+            User(
+                id=ADMIN_ID,
+                username="admin",
+                email="admin@example.com",
+                password="unused",
+                role="admin",
             ),
             Listing(
                 id=LISTING_ID,
@@ -254,3 +274,177 @@ def test_graduate_response_uses_stored_status(service_engine):
             "resume_text",
             "status",
         }
+
+
+@pytest.mark.parametrize("actor_id", [OTHER_EMPLOYER_ID, ADMIN_ID, GRADUATE_ID])
+def test_unauthorized_transition_is_forbidden(
+    service_engine, database_activity, actor_id
+):
+    original = save_application(service_engine)
+    database_activity["writes"].clear()
+    database_activity["commits"].clear()
+
+    result = applications.transition_application(
+        actor_id, original["id"], "mark_reviewed"
+    )
+
+    assert result == {"ok": False, "error": "forbidden"}
+    with Session(service_engine) as session:
+        assert session.get(Application, original["id"]).model_dump() == original
+    assert database_activity == {"writes": [], "commits": []}
+
+
+@pytest.mark.parametrize("actor_id", [OTHER_EMPLOYER_ID, ADMIN_ID, GRADUATE_ID])
+def test_transition_route_returns_403_for_unauthorized_actor(
+    service_engine, database_activity, actor_id
+):
+    original = save_application(service_engine)
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+
+    database_activity["writes"].clear()
+    database_activity["commits"].clear()
+
+    with TestClient(app) as client:
+        response = client.post(
+            f"/api/applications/{original['id']}/transition",
+            json={"actor_id": actor_id, "action": "mark_reviewed"},
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "forbidden"}
+    with Session(service_engine) as session:
+        assert session.get(Application, original["id"]).model_dump() == original
+    assert database_activity == {"writes": [], "commits": []}
+
+
+def test_owner_can_view_listing_applicants(service_engine):
+    original = save_application(service_engine)
+
+    result = applications.listing_applicants(EMPLOYER_ID, LISTING_ID)
+
+    assert result == {"ok": True, "applicants": [original]}
+
+
+@pytest.mark.parametrize("actor_id", [OTHER_EMPLOYER_ID, GRADUATE_ID])
+def test_unauthorized_actor_cannot_view_listing_applicants(
+    service_engine, actor_id
+):
+    save_application(service_engine)
+
+    result = applications.listing_applicants(actor_id, LISTING_ID)
+
+    assert result == {"ok": False, "error": "forbidden"}
+
+
+def test_applicant_route_returns_403_for_cross_employer(service_engine):
+    save_application(service_engine)
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+
+    with TestClient(app) as client:
+        response = client.get(
+            f"/api/listings/{LISTING_ID}/applicants",
+            params={"actor_id": OTHER_EMPLOYER_ID},
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "forbidden"}
+
+
+def test_admin_can_view_but_cannot_transition_applications(service_engine):
+    original = save_application(service_engine)
+
+    viewed = applications.listing_applicants(ADMIN_ID, LISTING_ID)
+    transitioned = applications.transition_application(
+        ADMIN_ID, original["id"], "mark_reviewed"
+    )
+
+    assert viewed == {"ok": True, "applicants": [original]}
+    assert transitioned == {"ok": False, "error": "forbidden"}
+
+
+def test_successful_transition_persists_history(service_engine):
+    original = save_application(service_engine)
+
+    result = applications.transition_application(
+        EMPLOYER_ID, original["id"], "mark_reviewed"
+    )
+
+    assert result["ok"] is True
+    with Session(service_engine) as session:
+        history = session.exec(
+            select(ApplicationStatusHistory)
+            .where(ApplicationStatusHistory.application_id == original["id"])
+        ).all()
+
+    assert len(history) == 1
+    assert history[0].application_id == original["id"]
+    assert history[0].previous_status == "submitted"
+    assert history[0].new_status == "reviewed"
+    assert history[0].actor_id == EMPLOYER_ID
+    assert history[0].timestamp is not None
+
+
+@pytest.mark.parametrize(
+    "status,action,actor_id",
+    [
+        ("submitted", "hire", EMPLOYER_ID),
+        ("submitted", "mark_reviewed", OTHER_EMPLOYER_ID),
+        ("submitted", "mark_reviewed", ADMIN_ID),
+        ("submitted", "mark_reviewed", GRADUATE_ID),
+    ],
+)
+def test_failed_or_unauthorized_transition_creates_no_history(
+    service_engine, status, action, actor_id
+):
+    original = save_application(service_engine, status)
+
+    result = applications.transition_application(
+        actor_id, original["id"], action
+    )
+
+    assert result["ok"] is False
+    with Session(service_engine) as session:
+        history = session.exec(
+            select(ApplicationStatusHistory)
+            .where(ApplicationStatusHistory.application_id == original["id"])
+        ).all()
+    assert history == []
+
+
+@pytest.mark.parametrize(
+    "actor_id",
+    [EMPLOYER_ID, GRADUATE_ID, ADMIN_ID],
+)
+def test_authorized_history_view_is_exposed(service_engine, actor_id):
+    original = save_application(service_engine)
+    applications.transition_application(
+        EMPLOYER_ID, original["id"], "mark_reviewed"
+    )
+
+    result = applications.application_history(actor_id, original["id"])
+
+    assert result["ok"] is True
+    assert len(result["history"]) == 1
+    assert result["history"][0]["previous_status"] == "submitted"
+    assert result["history"][0]["new_status"] == "reviewed"
+    assert result["history"][0]["actor_id"] == EMPLOYER_ID
+
+
+def test_history_route_returns_entry(service_engine):
+    original = save_application(service_engine)
+    applications.transition_application(
+        EMPLOYER_ID, original["id"], "mark_reviewed"
+    )
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+
+    with TestClient(app) as client:
+        response = client.get(
+            f"/api/applications/{original['id']}/history",
+            params={"actor_id": GRADUATE_ID},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["history"][0]["new_status"] == "reviewed"

@@ -183,5 +183,15 @@ def transition(application_id: int, body: TransitionBody) -> dict[str, Any]:
         body.actor_id, application_id, body.action
     )
     if not result.get("ok"):
-        raise HTTPException(status_code=400, detail=result.get("error"))
+        status_code = 403 if result.get("error") == "forbidden" else 400
+        raise HTTPException(status_code=status_code, detail=result.get("error"))
+    return result
+
+
+@router.get("/applications/{application_id}/history")
+def application_history(application_id: int, actor_id: int) -> dict[str, Any]:
+    result = applications.application_history(actor_id, application_id)
+    if not result.get("ok"):
+        status_code = 403 if result.get("error") == "forbidden" else 400
+        raise HTTPException(status_code=status_code, detail=result.get("error"))
     return result
