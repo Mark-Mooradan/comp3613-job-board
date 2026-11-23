@@ -60,6 +60,14 @@ def subscribe(body: ActorBody) -> dict[str, Any]:
     return result
 
 
+@router.get("/graduates/notifications")
+def graduate_notifications(actor_id: int) -> dict[str, Any]:
+    result = applications.my_notifications(actor_id)
+    if not result.get("ok"):
+        raise HTTPException(status_code=403, detail=result.get("error"))
+    return result
+
+
 @router.get("/jobs")
 def jobs() -> dict[str, Any]:
     return {"jobs": listings.list_jobs_for_graduates()}
