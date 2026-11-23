@@ -86,8 +86,9 @@ def listing_applicants(viewer_id: int, listing_id: int) -> dict[str, Any]:
         listing = session.get(Listing, listing_id)
         if listing is None:
             return {"ok": False, "error": "listing not found"}
-        # DEFECT (IDOR): ownership not checked for employers
         if viewer["role"] not in {"employer", "admin"}:
+            return {"ok": False, "error": "forbidden"}
+        if viewer["role"] == "employer" and viewer_id != listing.employer_id:
             return {"ok": False, "error": "forbidden"}
         rows = session.exec(
             select(Application)
@@ -114,8 +115,7 @@ def transition_application(
     actor = get_user(actor_id)
     if not actor:
         return {"ok": False, "error": "unknown user"}
-    # DEFECT: admin may transition; any employer may transition any application
-    if actor["role"] not in {"employer", "admin"}:
+    if actor["role"] != "employer":
         return {"ok": False, "error": "forbidden"}
     if action not in ACTIONS:
         return {"ok": False, "error": f"action must be one of {ACTIONS}"}
@@ -124,6 +124,11 @@ def transition_application(
         row = session.get(Application, application_id)
         if row is None:
             return {"ok": False, "error": "application not found"}
+        listing = session.get(Listing, row.listing_id)
+        if listing is None:
+            return {"ok": False, "error": "listing not found"}
+        if actor_id != listing.employer_id:
+            return {"ok": False, "error": "forbidden"}
 
         result = apply_action(row.model_dump(), action)
         if not result.get("ok"):
