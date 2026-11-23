@@ -10,9 +10,12 @@ from app.database import engine
 from app.models.application import Application
 from app.models.application_status_history import ApplicationStatusHistory
 from app.models.listing import Listing
+from app.models.notification import Notification
 from app.services import listings
 from app.services.board_auth import get_user
 from app.services.lifecycle import ACTIONS, apply_action
+from app.services.listings import ELIGIBLE_PROGRAMMES
+from app.services.notification_events import notify_observers
 
 
 def apply(
@@ -25,6 +28,8 @@ def apply(
     if not user or user["role"] != "graduate":
         return {"ok": False, "error": "graduates only"}
     # DEFECT: no programme eligibility check
+    if user.get("programme") not in ELIGIBLE_PROGRAMMES:
+        return {"ok": False, "error": "programme not eligible"}
 
     with Session(engine) as session:
         listing = session.get(Listing, listing_id)
@@ -153,6 +158,16 @@ def transition_application(
                 actor_id=actor_id,
             )
         )
+        # notify the applicant after the change
+        notify_observers(
+            session,
+            "application_changed",
+            {
+                "application_id": application_id,
+                "graduate_id": row.graduate_id,
+                "status": row.status,
+            },
+        )
         session.commit()
         session.refresh(row)
         return {"ok": True, "application": row.model_dump(), "changed": True}
@@ -190,3 +205,17 @@ def application_history(viewer_id: int, application_id: int) -> dict[str, Any]:
             .order_by(ApplicationStatusHistory.timestamp, ApplicationStatusHistory.id)
         ).all()
         return {"ok": True, "history": [row.model_dump() for row in rows]}
+
+
+def my_notifications(graduate_id: int) -> dict[str, Any]:
+    """get notifications for a graduate"""
+    user = get_user(graduate_id)
+    if not user or user["role"] != "graduate":
+        return {"ok": False, "error": "graduates only"}
+    with Session(engine) as session:
+        items = session.exec(
+            select(Notification)
+            .where(Notification.user_id == graduate_id)
+            .order_by(Notification.id)
+        ).all()
+        return {"ok": True, "notifications": [item.model_dump() for item in items]}

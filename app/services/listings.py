@@ -12,6 +12,7 @@ from app.models.listing import Listing
 from app.models.notification import Notification
 from app.models.subscription import Subscription
 from app.services.board_auth import get_user
+from app.services.notification_events import notify_observers
 
 ELIGIBLE_PROGRAMMES = {"DCIT"}
 
@@ -65,6 +66,8 @@ def subscribe(graduate_id: int) -> dict[str, Any]:
     if not user or user["role"] != "graduate":
         return {"ok": False, "error": "graduates only"}
     # DEFECT: no programme eligibility check
+    if user.get("programme") not in ELIGIBLE_PROGRAMMES:
+        return {"ok": False, "error": "programme not eligible"}
     with Session(engine) as session:
         existing = session.exec(
             select(Subscription).where(Subscription.graduate_id == graduate_id)
@@ -170,9 +173,15 @@ def publish_listing(admin_id: int, listing_id: int) -> dict[str, Any]:
             return {"ok": False, "error": error}
         listing.status = "published"
         session.add(listing)
+        # notify subscribers when the job gets published
+        count = notify_observers(
+            session,
+            "listing_published",
+            {"listing_id": listing.id, "title": listing.title, "company": listing.company},
+        )
         session.commit()
     # DEFECT: publish does not notify subscribers
-    return {"ok": True, "notified": False}
+    return {"ok": True, "notified": count > 0}
 
 
 def reject_listing(admin_id: int, listing_id: int) -> dict[str, Any]:
@@ -267,13 +276,14 @@ def notify_subscribers(admin_id: int, listing_id: int) -> dict[str, Any]:
         listing = session.get(Listing, listing_id)
         if listing is None:
             return {"ok": False, "error": "listing not found"}
-        subs = session.exec(select(Subscription)).all()
-        for sub in subs:
-            session.add(
-                Notification(
-                    user_id=sub.graduate_id,
-                    message=f"New job published: {listing.title} at {listing.company}",
-                )
-            )
-        session.commit()
-        return {"ok": True, "count": len(subs)}
+        if listing.status != "published":
+            return {"ok": False, "error": "listing is not published"}
+        # dont send the same notification again
+        count = notify_observers(
+            session,
+            "listing_published",
+            {"listing_id": listing.id, "title": listing.title, "company": listing.company},
+        )
+        if count:
+            session.commit()
+        return {"ok": True, "count": count}
