@@ -40,9 +40,7 @@ class ApplyBody(BaseModel):
 
 
 class TransitionBody(BaseModel):
-    action: str = Field(
-        description="mark_reviewed | shortlist | reject | hire | reopen"
-    )
+    action: str = Field(description="mark_reviewed | shortlist | reject | hire")
     actor_id: int
 
 
@@ -91,9 +89,50 @@ def submit_listing(body: ListingBody) -> dict[str, Any]:
     return result
 
 
+@router.get("/employer/listings")
+def employer_listings(actor_id: int) -> dict[str, Any]:
+    result = listings.list_listings_for_employer(actor_id)
+    if not result.get("ok"):
+        raise HTTPException(status_code=403, detail=result.get("error"))
+    return result
+
+
+@router.put("/employer/listings/{listing_id}")
+def update_listing(listing_id: int, body: ListingBody) -> dict[str, Any]:
+    result = listings.update_listing(
+        body.actor_id,
+        listing_id,
+        body.title,
+        body.company,
+        body.description,
+        body.apply_mode,
+        body.deadline,
+        body.external_url,
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@router.post("/employer/listings/{listing_id}/resubmit")
+def resubmit(listing_id: int, body: ActorBody) -> dict[str, Any]:
+    result = listings.resubmit_listing(body.actor_id, listing_id)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
 @router.post("/admin/listings/{listing_id}/publish")
 def publish(listing_id: int, body: ActorBody) -> dict[str, Any]:
     result = listings.publish_listing(body.actor_id, listing_id)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@router.post("/admin/listings/{listing_id}/reject")
+def reject(listing_id: int, body: ActorBody) -> dict[str, Any]:
+    result = listings.reject_listing(body.actor_id, listing_id)
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error"))
     return result
