@@ -1,14 +1,68 @@
 {% extends "authenticated-base.html" %}
-{% block title %}Home · HireBoard{% endblock %}
+{% block title %}Dashboard · HireBoard{% endblock %}
 
 {% block subpage_content %}
-<h1>Board home</h1>
-<p>
-  Explore the job-board JSON API, then map routes to stakeholder needs.
-  Seeded listings and applications are ready after <code>python manage.py init</code>.
-</p>
-<div class="app-actions">
-  <a href="/docs">Open API docs</a>
-  <a class="secondary" href="/api/jobs">List jobs</a>
+<div id="board" data-user-id="{{ user.id }}" data-role="{{ user.role | e }}">
+  <section class="dashboard-heading">
+    <span class="eyebrow">{{ user.role | e }} dashboard</span>
+    <h1>Welcome, {{ user.username | e }}.</h1>
+    <p>Manage your opportunities and applications.</p>
+  </section>
+  <div id="board-message" role="status" aria-live="polite" hidden></div>
+
+  {% if user.role == "graduate" %}
+  <nav class="section-nav" aria-label="Dashboard sections">
+    <a href="#jobs">Find jobs</a><a href="#my-applications">My applications</a><a href="#notifications">Notifications</a>
+  </nav>
+  <section class="board-section" id="jobs">
+    <div class="section-heading"><div><h2>Find jobs</h2><p>Explore current published opportunities.</p></div><button class="board-button secondary" id="subscribe" type="button">Subscribe to job alerts</button></div>
+    <label class="form-label" for="job-search">Search jobs</label>
+    <input class="form-control search-input" id="job-search" type="search" placeholder="Search by title, company or description">
+    <div id="job-list" class="card-grid" aria-live="polite"></div>
+  </section>
+  <section class="board-section" id="my-applications">
+    <div class="section-heading"><div><h2>My applications</h2><p>Track status and review your application history.</p></div></div>
+    <div id="application-list" class="card-grid"></div>
+  </section>
+  <section class="board-section" id="notifications">
+    <div class="section-heading"><div><h2>Notifications</h2><p>Updates on new jobs and application changes.</p></div><button id="refresh-notifications" class="board-button secondary" type="button">Refresh</button></div>
+    <div id="notification-list" class="stack"></div>
+  </section>
+
+  {% elif user.role == "employer" %}
+  <nav class="section-nav" aria-label="Dashboard sections"><a href="#new-listing">Create listing</a><a href="#my-listings">My listings</a><a href="#applicants">Applicants</a></nav>
+  <section class="board-section" id="new-listing">
+    <div class="section-heading"><div><h2 id="listing-heading">Create a job listing</h2><p>New listings are sent to an administrator for approval.</p></div></div>
+    <form id="listing-form" class="board-card form-grid">
+      <div><label class="form-label" for="job-title">Job title</label><input class="form-control" id="job-title" name="title" required></div>
+      <div><label class="form-label" for="company">Company</label><input class="form-control" id="company" name="company" required></div>
+      <div class="full-width"><label class="form-label" for="description">Description</label><textarea class="form-control" id="description" name="description" rows="4" required></textarea></div>
+      <div><label class="form-label" for="apply-mode">Application method</label><select class="form-select" id="apply-mode" name="apply_mode"><option value="collect">Apply on HireBoard</option><option value="external">External application</option></select></div>
+      <div><label class="form-label" for="deadline">Deadline</label><input class="form-control" id="deadline" name="deadline" type="date" required></div>
+      <div class="full-width" id="external-field" hidden><label class="form-label" for="external-url">External application URL</label><input class="form-control" id="external-url" name="external_url" type="url"></div>
+      <div class="full-width button-row"><button class="board-button" type="submit" id="listing-submit">Submit for approval</button><button class="board-button secondary" id="cancel-edit" type="button" hidden>Cancel edit</button></div>
+    </form>
+  </section>
+  <section class="board-section" id="my-listings">
+    <div class="section-heading"><div><h2>My listings</h2><p>Manage your jobs and review applicants.</p></div></div>
+    <div id="listing-list" class="card-grid"></div>
+  </section>
+  <section class="board-section" id="applicants">
+    <div class="section-heading"><div><h2>Applicants</h2><p id="applicant-heading">Choose a listing to review its applicants.</p></div></div>
+    <div id="applicant-list" class="card-grid"></div>
+  </section>
+  {% else %}
+  <section class="board-section">
+    <h2>Account setup</h2>
+    <p>Your account does not yet have a graduate or employer role. Contact the administrator to confirm your account details.</p>
+  </section>
+  <section class="board-section" id="jobs">
+    <h2>Published jobs</h2><div id="job-list" class="card-grid"></div>
+  </section>
+  {% endif %}
 </div>
+{% endblock %}
+
+{% block subpage_scripts %}
+<script src="{{ url_for('static', path='js/app.js') }}" defer></script>
 {% endblock %}

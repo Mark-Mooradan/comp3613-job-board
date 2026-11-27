@@ -3,20 +3,21 @@
 {% block content %}
 <div class="app-shell">
   <header class="app-topbar">
-    <a class="brand-wordmark" href="{{ url_for('index_view') }}">HireBoard</a>
-    <nav class="app-topnav" aria-label="App">
-      <a class="{{ 'is-active' if request.url.path.startswith('/app') }}" href="{{ url_for('user_home_view') }}">Home</a>
-      <a href="/docs">API docs</a>
-      <a href="{{ url_for('logout') }}">Sign out</a>
-      <span>{{ user.username }}</span>
+    <a class="brand-wordmark" href="{{ url_for('index_view') }}">HireBoard<span class="brand-dot">.</span></a>
+    <nav class="app-topnav" aria-label="Main navigation">
+      <a class="is-active" href="{{ url_for('admin_home_view') if user.role == 'admin' else url_for('user_home_view') }}">Dashboard</a>
+      <button class="theme-toggle" type="button" data-theme-toggle>dark mode</button>
+      <span class="nav-user">{{ user.username | e }} · {{ user.role | e }}</span>
+      <a class="nav-logout" href="{{ url_for('logout') }}">Sign out</a>
     </nav>
   </header>
   <main class="app-main">
     {% for message in get_flashed_messages(request) %}
-    <div class="alert alert-{{ message.type }}" role="alert">{{ message.message }}</div>
+    <div class="alert alert-{{ message.type | e }}" role="alert">{{ message.message | e }}</div>
     {% endfor %}
     {% block subpage_content %}{% endblock %}
   </main>
+  <footer class="app-footer">HireBoard · UWI job board project</footer>
 </div>
 {% block subpage_scripts %}{% endblock %}
 {% endblock %}

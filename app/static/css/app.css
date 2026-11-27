@@ -1,17 +1,65 @@
+/* site colours */
 :root {
+  color-scheme: light;
   --brand-name: "HireBoard";
-  --brand-bg: #0c1118;
-  --brand-surface: #e7edf4;
-  --brand-ink: #121820;
-  --brand-muted: #5c6b7a;
-  --brand-accent: #c8f135;
-  --brand-accent-ink: #10160a;
-  --brand-accent-2: #3f6f9a;
-  --brand-sidebar: #121820;
-  --brand-sidebar-text: #a8b6c4;
+  --brand-bg: #f2f5f9;
+  --brand-surface: #f2f5f9;
+  --brand-ink: #233247;
+  --brand-muted: #52647a;
+  --brand-accent: #365d8d;
+  --brand-accent-ink: #ffffff;
+  --brand-accent-2: #456f9e;
+  --brand-sidebar: #ffffff;
+  --brand-sidebar-text: #52647a;
   --brand-font-display: "Syne", "Segoe UI", sans-serif;
   --brand-font-body: "Instrument Sans", "Segoe UI", sans-serif;
-  --brand-radius: 0.35rem;
+  --brand-radius: 0.7rem;
+  --card: #ffffff;
+  --border: #d6dfe9;
+  --hover: #e9eff7;
+  --banner: #e3ebf6;
+  --banner-ink: #253a55;
+  --landing-bg: #f2f5f9;
+  --landing-end: #dce7f4;
+  --focus: #658cc1;
+  --success-bg: #e3f1e8;
+  --success-ink: #285b3c;
+  --danger-bg: #f9e8e8;
+  --danger-ink: #8d3038;
+  --pending-bg: #f7eedc;
+  --pending-ink: #73541b;
+  --review-bg: #e4edf9;
+  --review-ink: #355782;
+}
+
+/* dark theme colours */
+:root[data-bs-theme="dark"] {
+  color-scheme: dark;
+  --brand-bg: #101722;
+  --brand-surface: #101722;
+  --brand-ink: #e0e7f0;
+  --brand-muted: #a7b5c8;
+  --brand-accent: #a7c5ef;
+  --brand-accent-ink: #17273d;
+  --brand-accent-2: #91b2e0;
+  --brand-sidebar: #182230;
+  --brand-sidebar-text: #b8c5d6;
+  --card: #1a2534;
+  --border: #354457;
+  --hover: #27384d;
+  --banner: #203149;
+  --banner-ink: #e0e9f5;
+  --landing-bg: #101722;
+  --landing-end: #203149;
+  --focus: #9abcf0;
+  --success-bg: #233e35;
+  --success-ink: #b2dfc1;
+  --danger-bg: #442e38;
+  --danger-ink: #f2b7bd;
+  --pending-bg: #443923;
+  --pending-ink: #f0d5a1;
+  --review-bg: #263c58;
+  --review-ink: #bed6f6;
 }
 
 *,
@@ -46,10 +94,8 @@ a {
   min-height: 100vh;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  color: var(--brand-surface);
-  background:
-    linear-gradient(115deg, rgba(12, 17, 24, 0.92) 0%, rgba(12, 17, 24, 0.55) 48%, rgba(12, 17, 24, 0.88) 100%),
-    linear-gradient(180deg, #1a2430 0%, #0c1118 100%);
+  color: var(--brand-ink);
+  background: linear-gradient(135deg, var(--landing-bg), var(--landing-end));
   position: relative;
   overflow: hidden;
 }
@@ -62,7 +108,7 @@ a {
     repeating-linear-gradient(
       -28deg,
       transparent 0 46px,
-      rgba(200, 241, 53, 0.07) 46px 48px
+      color-mix(in srgb, var(--brand-accent) 7%, transparent) 46px 48px
     );
   transform: translateX(-8%);
   animation: slash-drift 16s ease-in-out infinite alternate;
@@ -77,7 +123,7 @@ a {
   z-index: 0;
   width: min(42vw, 520px);
   background:
-    linear-gradient(160deg, color-mix(in srgb, var(--brand-accent-2) 55%, #0c1118), #0c1118 70%);
+    linear-gradient(160deg, color-mix(in srgb, var(--brand-accent-2) 15%, var(--landing-bg)), var(--landing-end) 70%);
   clip-path: polygon(18% 0, 100% 0, 100% 100%, 0 100%);
   animation: panel-in 0.9s ease-out both;
   pointer-events: none;
@@ -99,7 +145,7 @@ a {
 
 .landing-nav .brand-wordmark {
   font-size: clamp(1.35rem, 2.4vw, 1.75rem);
-  color: var(--brand-surface);
+  color: var(--brand-ink);
   text-decoration: none;
 }
 
@@ -122,14 +168,14 @@ a {
   font-size: clamp(3.2rem, 10vw, 5.8rem);
   line-height: 0.92;
   margin: 0 0 1.1rem;
-  color: #f5f8fc;
+  color: var(--brand-ink);
   opacity: 1;
 }
 
 .landing-lead {
   font-size: clamp(1.05rem, 2.2vw, 1.25rem);
   line-height: 1.55;
-  color: color-mix(in srgb, var(--brand-surface) 78%, transparent);
+  color: var(--brand-muted);
   margin: 0 0 2rem;
   max-width: 28rem;
 }
@@ -162,14 +208,14 @@ a {
 }
 
 .btn-landing-primary:hover {
-  background: color-mix(in srgb, var(--brand-accent) 88%, #fff);
+  background: color-mix(in srgb, var(--brand-accent) 90%, var(--brand-ink));
   color: var(--brand-accent-ink);
 }
 
 .btn-landing-ghost {
   background: transparent;
-  color: var(--brand-surface);
-  border-color: color-mix(in srgb, var(--brand-surface) 40%, transparent);
+  color: var(--brand-ink);
+  border-color: var(--border);
 }
 
 .btn-landing-ghost:hover {
@@ -180,7 +226,7 @@ a {
 .landing-foot {
   padding: 1.25rem clamp(1.25rem, 4vw, 3rem) 1.75rem;
   font-size: 0.85rem;
-  color: color-mix(in srgb, var(--brand-surface) 48%, transparent);
+  color: var(--brand-muted);
 }
 
 .landing-foot code {
@@ -228,7 +274,7 @@ a {
 
 .auth-panel {
   width: min(420px, 100%);
-  background: var(--brand-surface);
+  background: var(--card);
   color: var(--brand-ink);
   border-radius: var(--brand-radius);
   padding: 2rem 1.75rem;
@@ -254,8 +300,8 @@ a {
 }
 
 .auth-panel .btn-primary:hover {
-  background: color-mix(in srgb, var(--brand-accent) 88%, #000);
-  border-color: color-mix(in srgb, var(--brand-accent) 88%, #000);
+  background: color-mix(in srgb, var(--brand-accent) 90%, var(--brand-ink));
+  border-color: color-mix(in srgb, var(--brand-accent) 90%, var(--brand-ink));
   color: var(--brand-accent-ink);
 }
 
@@ -292,7 +338,8 @@ a {
   gap: 1rem;
   padding: 0.9rem clamp(1rem, 3vw, 2rem);
   background: var(--brand-sidebar);
-  color: var(--brand-surface);
+  border-bottom: 1px solid var(--border);
+  color: var(--brand-ink);
 }
 
 .app-topbar .brand-wordmark {
@@ -352,8 +399,8 @@ a {
   border-radius: var(--brand-radius);
   text-decoration: none;
   font-weight: 600;
-  background: var(--brand-ink);
-  color: var(--brand-surface);
+  background: var(--brand-accent);
+  color: var(--brand-accent-ink);
 }
 
 .app-actions a.secondary {
@@ -361,3 +408,195 @@ a {
   color: var(--brand-ink);
   border: 1px solid color-mix(in srgb, var(--brand-ink) 25%, transparent);
 }
+
+/* dashboard and responsive layout */
+
+.brand-dot { color: var(--brand-accent); }
+.auth-panel .brand-dot { color: var(--brand-accent); }
+
+.landing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  align-items: center;
+  gap: clamp(2rem, 5vw, 5rem);
+  width: 100%;
+  max-width: 1200px;
+  margin: auto;
+  padding: clamp(2rem, 7vw, 5rem);
+}
+
+.landing-hero h1 {
+  font-family: var(--brand-font-display);
+  font-size: clamp(2.7rem, 6.2vw, 5rem);
+  line-height: 1.05;
+  letter-spacing: -0.045em;
+  margin: 1rem 0;
+}
+
+.eyebrow {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  color: var(--brand-muted);
+}
+
+.landing .eyebrow { color: var(--brand-accent); }
+
+.hero-preview {
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 1rem;
+}
+
+.preview-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  border-top: 1px solid var(--border);
+  padding: 1.25rem 0;
+}
+
+.preview-step:last-child { padding-bottom: 0; }
+.preview-step > span { color: var(--brand-accent); font-weight: 700; }
+.preview-step p { margin: 0.35rem 0 0; color: var(--brand-muted); font-size: 0.95rem; }
+
+.auth-panel {
+  background: var(--card);
+  box-shadow: 0 15px 45px #00000014;
+  padding: clamp(1.4rem, 5vw, 2.5rem);
+  width: min(460px, 100%);
+}
+
+.app-topbar { flex-wrap: wrap; }
+.nav-user { font-size: 0.82rem; color: var(--brand-muted); overflow-wrap: anywhere; }
+.nav-logout { border: 1px solid var(--border); border-radius: var(--brand-radius); padding: 0.5rem 0.8rem; }
+.app-main { max-width: 1180px; animation: none; }
+.app-footer { text-align: center; font-size: 0.85rem; color: var(--brand-muted); padding: 1.5rem; }
+
+.dashboard-heading {
+  background: var(--banner);
+  border-radius: 1rem;
+  padding: clamp(1.4rem, 4vw, 2.6rem);
+  color: var(--banner-ink);
+  margin-bottom: 1.25rem;
+}
+
+.dashboard-heading .eyebrow { color: var(--brand-accent); margin-bottom: 0.6rem; }
+.dashboard-heading h1 { font-size: clamp(1.8rem, 4vw, 2.7rem); overflow-wrap: anywhere; }
+.dashboard-heading p { color: var(--brand-muted); margin: 0; }
+
+.section-nav { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 1rem 0; }
+.section-nav a { padding: 0.6rem 0.9rem; border: 1px solid var(--border); border-radius: var(--brand-radius); background: var(--card); text-decoration: none; font-weight: 600; }
+.section-nav a:hover { border-color: var(--brand-accent); }
+.board-section { margin: 2rem 0; scroll-margin-top: 1rem; }
+.section-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; }
+.board-section h2 { font-size: 1.35rem; font-weight: 700; margin-bottom: 0.35rem; }
+.section-heading p { margin: 0; font-size: 0.95rem; }
+
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr)); gap: 1rem; }
+.stack { display: grid; gap: 0.75rem; }
+.board-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--brand-radius); padding: 1.2rem; min-width: 0; overflow-wrap: anywhere; }
+.card-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.65rem; flex-wrap: wrap; }
+.card-heading h3 { font-size: 1.12rem; line-height: 1.35; margin: 0; font-weight: 700; }
+.app-main .card-meta { margin: 0.45rem 0 0.9rem; font-size: 0.87rem; }
+.app-main .job-description { white-space: pre-wrap; color: var(--brand-ink); margin-bottom: 1rem; }
+.button-row { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-top: 0.75rem; }
+
+.board-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.62rem 0.95rem;
+  min-height: 42px;
+  border: 1px solid var(--brand-accent);
+  border-radius: var(--brand-radius);
+  background: var(--brand-accent);
+  color: var(--brand-accent-ink);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.board-button:hover { background: color-mix(in srgb, var(--brand-accent) 90%, var(--brand-ink)); color: var(--brand-accent-ink); }
+.board-button.secondary { background: var(--card); color: var(--brand-ink); border-color: var(--border); }
+.board-button.secondary:hover { background: var(--hover); }
+.board-button.danger { color: var(--danger-ink); border-color: var(--border); background: var(--card); }
+.board-button.danger:hover { background: var(--danger-bg); }
+.board-button:disabled { opacity: 0.6; cursor: wait; }
+[hidden] { display: none !important; }
+:where(a, button, input, select, textarea, summary):focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+.status-badge { display: inline-flex; padding: 0.25rem 0.55rem; border-radius: 0.4rem; background: var(--hover); color: var(--brand-muted); font-size: 0.76rem; text-transform: capitalize; font-weight: 700; }
+.status-badge.pending, .status-badge.submitted { background: var(--pending-bg); color: var(--pending-ink); }
+.status-badge.reviewed, .status-badge.shortlisted { background: var(--review-bg); color: var(--review-ink); }
+.status-badge.published, .status-badge.hired { background: var(--success-bg); color: var(--success-ink); }
+.status-badge.rejected, .status-badge.withdrawn { background: var(--danger-bg); color: var(--danger-ink); }
+
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.full-width { grid-column: 1 / -1; }
+.form-control, .form-select { min-height: 44px; border-radius: 0.5rem; }
+.form-label { font-weight: 600; font-size: 0.88rem; }
+.search-input { max-width: 500px; margin-bottom: 1rem; }
+.application-form { display: grid; gap: 0.6rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.application-form .form-label { margin: 0; }
+.applicant-details { margin: 0.75rem 0; }
+.applicant-details summary { font-weight: 600; cursor: pointer; }
+.applicant-details h4, .history-panel h4 { font-size: 0.9rem; margin: 0.8rem 0 0.4rem; }
+.applicant-details p { white-space: pre-wrap; }
+.history-panel { padding-top: 0.75rem; margin-top: 0.75rem; border-top: 1px solid var(--border); }
+.app-main .history-entry { margin: 0.5rem 0; font-weight: 600; }
+.history-entry small { display: block; font-weight: 400; color: var(--brand-muted); }
+.notification-label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--brand-muted); margin-bottom: 0.3rem; }
+.app-main .notification p { margin: 0; color: var(--brand-ink); }
+.app-main .empty-state { max-width: none; margin: 0; grid-column: 1 / -1; padding: 1.5rem; background: var(--card); border: 1px dashed var(--border); border-radius: var(--brand-radius); }
+.board-message { padding: 0.8rem 1rem; margin-bottom: 1rem; border-radius: var(--brand-radius); background: var(--success-bg); color: var(--success-ink); overflow-wrap: anywhere; }
+.board-message.error { background: var(--danger-bg); color: var(--danger-ink); }
+
+@media (max-width: 720px) {
+  .landing-hero { grid-template-columns: 1fr; gap: 2rem; padding: 2rem 1.25rem; }
+  .landing-nav { flex-wrap: wrap; gap: 1rem; }
+  .app-topnav { gap: 0.6rem; }
+  .app-topbar { align-items: flex-start; }
+  .form-grid { grid-template-columns: 1fr; }
+  .app-main { padding: 1rem; }
+  .hero-preview { padding: 1.25rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+/* theme button and form colours */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--brand-radius);
+  background: var(--card);
+  color: var(--brand-ink);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.theme-toggle:hover { background: var(--hover); }
+.auth-top { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.auth-top .auth-back { margin-bottom: 0; }
+.form-control, .form-select {
+  background-color: var(--card);
+  color: var(--brand-ink);
+  border-color: var(--border);
+}
+.form-control::placeholder { color: var(--brand-muted); opacity: 1; }
+.form-control:focus, .form-select:focus {
+  background-color: var(--card);
+  color: var(--brand-ink);
+  border-color: var(--focus);
+  box-shadow: 0 0 0 0.15rem color-mix(in srgb, var(--focus) 22%, transparent);
+}
+.auth-panel .btn-outline-secondary:hover { background: var(--hover); color: var(--brand-ink); }
