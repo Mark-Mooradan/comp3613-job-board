@@ -1,41 +1,43 @@
 {% extends "base.html" %}
-{% block title %}HireBoard{% endblock %}
+{% block title %}HireBoard · Find your next opportunity{% endblock %}
 
 {% block content %}
 <div class="landing">
-  <div class="landing-slash" aria-hidden="true"></div>
-  <div class="landing-panel" aria-hidden="true"></div>
-
   <header class="landing-nav">
-    <a class="brand-wordmark" href="{{ url_for('index_view') }}">HireBoard</a>
+    <a class="brand-wordmark" href="{{ url_for('index_view') }}">HireBoard<span class="brand-dot">.</span></a>
     <div class="landing-nav-actions">
+      <button class="theme-toggle" type="button" data-theme-toggle>dark mode</button>
       {% if user_logged_in %}
-      <a class="btn-landing btn-landing-ghost" href="{{ app_home }}">Open board</a>
+      <a class="btn-landing btn-landing-ghost" href="{{ app_home }}">Open dashboard</a>
       <a class="btn-landing btn-landing-ghost" href="{{ url_for('logout') }}">Sign out</a>
       {% else %}
       <a class="btn-landing btn-landing-ghost" href="{{ url_for('login_view') }}">Sign in</a>
-      <a class="btn-landing btn-landing-primary" href="{{ url_for('register_view') }}">Join</a>
+      <a class="btn-landing btn-landing-primary" href="{{ url_for('register_view') }}">Create account</a>
       {% endif %}
     </div>
   </header>
 
   <main class="landing-hero">
-    <h1 class="brand-wordmark">HireBoard</h1>
-    <p class="landing-lead">
-      Post roles, review applicants, and move hiring forward — without losing the thread.
-    </p>
-    <div class="landing-cta">
-      {% if user_logged_in %}
-      <a class="btn-landing btn-landing-primary" href="{{ app_home }}">Continue</a>
-      {% else %}
-      <a class="btn-landing btn-landing-primary" href="{{ url_for('register_view') }}">Create account</a>
-      <a class="btn-landing btn-landing-ghost" href="{{ url_for('login_view') }}">Sign in</a>
-      {% endif %}
+    <div class="hero-copy">
+      <span class="eyebrow">THE UWI JOB BOARD</span>
+      <h1>Find your next opportunity<span class="brand-dot">.</span></h1>
+      <p class="landing-lead">Discover jobs, follow your applications and connect with employers — all in one place.</p>
+      <div class="landing-cta">
+        {% if user_logged_in %}
+        <a class="btn-landing btn-landing-primary" href="{{ app_home }}">Open dashboard</a>
+        {% else %}
+        <a class="btn-landing btn-landing-primary" href="{{ url_for('login_view') }}">Get started</a>
+        <a class="btn-landing btn-landing-ghost" href="{{ url_for('register_view') }}">Create account</a>
+        {% endif %}
+      </div>
     </div>
+    <aside class="hero-preview" aria-label="How HireBoard works">
+      <p class="eyebrow">FROM APPLICATION TO OFFER</p>
+      <div class="preview-step"><span>01</span><div><strong>Discover opportunities</strong><p>Browse published jobs and find your next role.</p></div></div>
+      <div class="preview-step"><span>02</span><div><strong>Submit your application</strong><p>Apply online or follow an external application link.</p></div></div>
+      <div class="preview-step"><span>03</span><div><strong>Track your progress</strong><p>View application status, history and notifications.</p></div></div>
+    </aside>
   </main>
-
-  <footer class="landing-foot">
-    After <code>python manage.py init</code>: employer@example.com / employer-dev · admin@example.com / admin-dev
-  </footer>
+  <footer class="landing-foot">HireBoard · University of the West Indies, St. Augustine · COMP 3613</footer>
 </div>
 {% endblock %}
