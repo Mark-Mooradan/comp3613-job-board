@@ -25,7 +25,7 @@ DETAILS = {
 
 
 @pytest.fixture
-def api_client(test_session, monkeypatch):
+def api_client(test_session, monkeypatch, api_auth):
     engine = test_session.get_bind()
     monkeypatch.setattr(listings, "engine", engine)
     monkeypatch.setattr(board_auth, "engine", engine)
@@ -49,7 +49,10 @@ def api_client(test_session, monkeypatch):
     # Mount the production router without the main app's startup seeding.
     app = FastAPI()
     app.include_router(router, prefix="/api")
+    install_auth, authenticate = api_auth
+    install_auth(app)
     with TestClient(app) as client:
+        client.authenticate = lambda user_id: authenticate(client, user_id)
         yield client
 
 
@@ -72,6 +75,15 @@ def snapshot(test_session):
 @pytest.fixture
 def assert_rejected_request(api_client, test_session):
     def check(method, path, status_code=400, error=None, **kwargs):
+        body = kwargs.get("json")
+        params = kwargs.get("params")
+        actor_id = None
+        if isinstance(body, dict):
+            actor_id = body.pop("actor_id", None)
+        if actor_id is None and isinstance(params, dict):
+            actor_id = params.pop("actor_id", None)
+        if actor_id is not None:
+            api_client.authenticate(actor_id)
         engine = test_session.get_bind()
         before = snapshot(test_session)
         activity = []
@@ -105,6 +117,15 @@ def assert_rejected_request(api_client, test_session):
 
 
 def ok(client, method, path, **kwargs):
+    body = kwargs.get("json")
+    params = kwargs.get("params")
+    actor_id = None
+    if isinstance(body, dict):
+        actor_id = body.pop("actor_id", None)
+    if actor_id is None and isinstance(params, dict):
+        actor_id = params.pop("actor_id", None)
+    if actor_id is not None:
+        client.authenticate(actor_id)
     response = client.request(method, path, **kwargs)
     assert response.status_code == 200, response.text
     return response.json()
@@ -204,13 +225,17 @@ def test_employer_endpoint_returns_only_owned_listings(api_client, test_session,
     }
 
 
-@pytest.mark.parametrize("actor", [ADMIN, GRADUATE, 999])
-def test_employer_endpoint_rejects_invalid_actors(assert_rejected_request, actor):
+@pytest.mark.parametrize(
+    "actor,status_code",
+    [(ADMIN, 403), (GRADUATE, 403), (999, 401)],
+)
+def test_employer_endpoint_rejects_invalid_actors(
+    assert_rejected_request, actor, status_code
+):
     assert_rejected_request(
         "GET",
         "/api/employer/listings",
-        403,
-        "employers only",
+        status_code,
         params={"actor_id": actor},
     )
 
@@ -218,9 +243,9 @@ def test_employer_endpoint_rejects_invalid_actors(assert_rejected_request, actor
 @pytest.mark.parametrize(
     "method, path, status, actor, error",
     [
-        ("POST", "/admin/listings/{id}/reject", "pending", OWNER, "admin only"),
-        ("PUT", "/employer/listings/{id}", "rejected", OTHER, "forbidden"),
-        ("POST", "/employer/listings/{id}/resubmit", "rejected", OTHER, "forbidden"),
+    ("POST", "/admin/listings/{id}/reject", "pending", OWNER, "admin only"),
+    ("PUT", "/employer/listings/{id}", "rejected", OTHER, "forbidden"),
+    ("POST", "/employer/listings/{id}/resubmit", "rejected", OTHER, "forbidden"),
     ],
 )
 def test_invalid_api_operations_do_not_write(
@@ -237,7 +262,11 @@ def test_invalid_api_operations_do_not_write(
     if method == "PUT":
         body.update(DETAILS)
     assert_rejected_request(
-        method, "/api" + path.format(id=original["id"]), error=error, json=body
+        method,
+        "/api" + path.format(id=original["id"]),
+        status_code=403,
+        error=error,
+        json=body,
     )
 
 
@@ -252,16 +281,11 @@ def test_invalid_edit_deadline_returns_400_without_writes(
     )
 
 
-@pytest.mark.parametrize(
-    "method, path, body",
-    [
-        ("POST", "/api/admin/listings/1/reject", {}),
-        ("PUT", "/api/employer/listings/1", {"actor_id": OWNER}),
-    ],
-)
-def test_missing_request_fields_return_422(assert_rejected_request, method, path, body):
-    assert_rejected_request(method, path, 422, json=body)
+def test_protected_route_requires_authentication(assert_rejected_request):
+    assert_rejected_request(
+        "POST", "/api/admin/listings/1/reject", status_code=401, json={}
+    )
 
 
-def test_employer_query_requires_actor_id(assert_rejected_request):
-    assert_rejected_request("GET", "/api/employer/listings", 422)
+def test_employer_listings_requires_authentication(assert_rejected_request):
+    assert_rejected_request("GET", "/api/employer/listings", status_code=401)

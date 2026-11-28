@@ -1,7 +1,6 @@
 const board = document.getElementById("board");
 
 if (board) {
-  const userId = Number(board.dataset.userId);
   const role = board.dataset.role;
   const byId = id => document.getElementById(id);
   let jobs = [];
@@ -26,12 +25,9 @@ if (board) {
     const options = { method, credentials: "same-origin" };
     if (method !== "GET") {
       options.headers = { "Content-Type": "application/json" };
-      options.body = JSON.stringify({ ...data, actor_id: userId });
+      options.body = JSON.stringify(data);
     }
     const url = new URL("/api" + path, location.origin);
-    if (method === "GET" && path !== "/jobs") {
-      url.searchParams.set("actor_id", userId);
-    }
     const response = await fetch(url, options);
     if (!response.headers.get("content-type")?.includes("application/json")) {
       throw new Error("Your session may have expired. Please sign in again.");
@@ -196,7 +192,8 @@ if (board) {
       result.history.forEach(entry => {
         const line = element("p", entry.previous_status + " → " + entry.new_status, "history-entry");
         const date = new Date(entry.timestamp);
-        line.append(element("small", Number.isNaN(date.getTime()) ? entry.timestamp : date.toLocaleString()));
+        const timestamp = Number.isNaN(date.getTime()) ? entry.timestamp : date.toLocaleString();
+        line.append(element("small", "Changed by user #" + entry.actor_id + " · " + timestamp));
         panel.append(line);
       });
       panel.hidden = false;

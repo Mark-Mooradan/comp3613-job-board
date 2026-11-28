@@ -40,14 +40,14 @@ See [`ASSIGNMENT.md`](ASSIGNMENT.md) and [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.
 python -m pytest tests -q
 ```
 
-## Authorization demo limitation
+## API authentication and authorization
 
-The scenario API is a development demo: acting identities are supplied by the
-request body/query as `actor_id`; it does not derive identity from a login
-session or JWT. This is not a substitute for real authentication, but every
-listing/applicant operation still performs server-side role and ownership
-checks. A status transition requires an employer whose ID equals the listing's
-`employer_id`; administrators cannot transition applications.
+Protected job-board API routes derive the acting user from the signed
+`access_token` cookie issued by `/login` or `/api/auth/login`. Do not send an
+`actor_id` to choose an identity; authorization uses the authenticated user,
+and employers can access applicant data or change application status only for
+their own listings. Administrators may review listings and access authorized
+applicant export functions, but cannot transition application statuses.
 
 Successful application status changes are written atomically to
 `ApplicationStatusHistory`, including the previous status, new status, actor,

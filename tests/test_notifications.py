@@ -15,6 +15,7 @@ from app.models.notification import Notification
 from app.models.user import User
 from app.routers.board import router
 from app.services import applications, board_auth, listings
+from app.utilities.security import encrypt_password
 
 EMPLOYER = 1
 OTHER_EMPLOYER = 2
@@ -25,7 +26,7 @@ INELIGIBLE_GRADUATE = 6
 
 
 @pytest.fixture
-def board(test_session, monkeypatch):
+def board(test_session, monkeypatch, api_auth):
     engine = test_session.get_bind()
     for service in (applications, listings, board_auth):
         monkeypatch.setattr(service, "engine", engine)
@@ -53,7 +54,10 @@ def board(test_session, monkeypatch):
 
     app = FastAPI()
     app.include_router(router, prefix="/api")
+    install_auth, authenticate = api_auth
+    install_auth(app)
     with TestClient(app) as client:
+        client.authenticate = lambda user_id: authenticate(client, user_id)
         yield client, engine
 
 
@@ -94,9 +98,36 @@ def rows(engine, cls):
 
 
 def post_ok(client, path, actor, **payload):
-    response = client.post(path, json={"actor_id": actor, **payload})
+    client.authenticate(actor)
+    response = client.post(path, json=payload)
     assert response.status_code == 200, response.text
     return response.json()
+
+
+def test_api_login_cookie_is_authoritative_over_actor_id(board):
+    client, engine = board
+    with Session(engine) as session:
+        user = session.get(User, EMPLOYER)
+        user.password = encrypt_password("employer-test-password")
+        session.add(user)
+        session.commit()
+
+    login = client.post(
+        "/api/auth/login",
+        json={
+            "email": "employer@example.com",
+            "password": "employer-test-password",
+        },
+    )
+
+    assert login.status_code == 200
+    assert login.json()["user"]["id"] == EMPLOYER
+    assert "password" not in login.json()["user"]
+    assert "httponly" in login.headers["set-cookie"].lower()
+    denied = client.get(
+        "/api/admin/listings/pending", params={"actor_id": ADMIN}
+    )
+    assert denied.status_code == 403
 
 
 def test_publication_notifies_subscribers_automatically_once(board):
@@ -112,8 +143,9 @@ def test_publication_notifies_subscribers_automatically_once(board):
     assert len(notifications) == 2
     assert all(f"#{listing_id}" in n.message for n in notifications)
 
+    client.authenticate(GRADUATE)
     inbox = client.get(
-        "/api/graduates/notifications", params={"actor_id": GRADUATE}
+        "/api/graduates/notifications"
     )
     assert inbox.status_code == 200
     assert len(inbox.json()["notifications"]) == 1
@@ -123,9 +155,8 @@ def test_publication_notifies_subscribers_automatically_once(board):
     manual = post_ok(client, f"/api/admin/listings/{listing_id}/notify", ADMIN)
     assert manual == {"ok": True, "count": 0}
     assert len(rows(engine, Notification)) == 2
-    republish = client.post(
-        f"/api/admin/listings/{listing_id}/publish", json={"actor_id": ADMIN}
-    )
+    client.authenticate(ADMIN)
+    republish = client.post(f"/api/admin/listings/{listing_id}/publish", json={})
     assert republish.status_code == 400
     assert len(rows(engine, Notification)) == 2
 
@@ -137,9 +168,9 @@ def test_rejected_or_unauthorized_publication_does_not_notify(board):
 
     invalid = client.post(
         f"/api/admin/listings/{listing_id}/publish",
-        json={"actor_id": EMPLOYER},
+        json={},
     )
-    assert invalid.status_code == 400
+    assert invalid.status_code == 403
     assert rows(engine, Notification) == []
 
     rejected = post_ok(client, f"/api/admin/listings/{listing_id}/reject", ADMIN)
@@ -147,7 +178,7 @@ def test_rejected_or_unauthorized_publication_does_not_notify(board):
     assert rows(engine, Notification) == []
     invalid = client.post(
         f"/api/admin/listings/{listing_id}/publish",
-        json={"actor_id": ADMIN},
+        json={},
     )
     assert invalid.status_code == 400
     assert rows(engine, Notification) == []
@@ -174,14 +205,12 @@ def test_application_flow_notifies_only_applicant_and_records_history(board):
 
     notifications = rows(engine, Notification)
     assert [n.user_id for n in notifications] == [GRADUATE] * 3
-    inbox = client.get(
-        "/api/graduates/notifications", params={"actor_id": GRADUATE}
-    )
+    client.authenticate(GRADUATE)
+    inbox = client.get("/api/graduates/notifications")
     assert inbox.status_code == 200
     assert len(inbox.json()["notifications"]) == 3
-    other_inbox = client.get(
-        "/api/graduates/notifications", params={"actor_id": SECOND_GRADUATE}
-    )
+    client.authenticate(SECOND_GRADUATE)
+    other_inbox = client.get("/api/graduates/notifications")
     assert other_inbox.status_code == 200
     assert other_inbox.json()["notifications"] == []
     assert [n.message.split("to ")[-1] for n in notifications] == [
@@ -197,9 +226,10 @@ def test_application_flow_notifies_only_applicant_and_records_history(board):
 
     # invalid changes shouldnt save anything
     for actor, action in ((EMPLOYER, "reject"), (OTHER_EMPLOYER, "reject")):
+        client.authenticate(actor)
         response = client.post(
             f"/api/applications/{application_id}/transition",
-            json={"actor_id": actor, "action": action},
+            json={"action": action},
         )
         assert response.status_code in (400, 403)
     assert len(rows(engine, Notification)) == 3
@@ -215,9 +245,10 @@ def test_failed_status_change_has_no_history_or_notification(board):
         (OTHER_EMPLOYER, "mark_reviewed"),
         (ADMIN, "mark_reviewed"),
     ):
+        client.authenticate(actor)
         response = client.post(
             f"/api/applications/{app_id}/transition",
-            json={"actor_id": actor, "action": action},
+            json={"action": action},
         )
         assert response.status_code in (400, 403)
     assert rows(engine, Notification) == []
@@ -228,20 +259,18 @@ def test_failed_status_change_has_no_history_or_notification(board):
 def test_ineligible_graduate_cannot_apply_or_subscribe(board):
     client, engine = board
     listing_id = create_listing(engine, status="published")
-    subscribe = client.post(
-        "/api/graduates/subscribe", json={"actor_id": INELIGIBLE_GRADUATE}
-    )
+    client.authenticate(INELIGIBLE_GRADUATE)
+    subscribe = client.post("/api/graduates/subscribe", json={})
     assert subscribe.status_code == 400
     assert "programme" in subscribe.json()["detail"]
     apply = client.post(
         "/api/graduates/applications",
         json={
-            "actor_id": INELIGIBLE_GRADUATE,
             "listing_id": listing_id,
             "cover_letter": "Hello",
         },
     )
-    assert apply.status_code == 400
+    assert apply.status_code == 403
     assert "programme" in apply.json()["detail"]
     assert rows(engine, Application) == []
     assert rows(engine, Notification) == []
@@ -260,9 +289,10 @@ def test_failed_notification_insert_rolls_back_listing_status(board):
     event.listen(engine, "before_cursor_execute", block_notification)
     try:
         with pytest.raises(RuntimeError, match="simulated notification"):
+            client.authenticate(ADMIN)
             client.post(
                 f"/api/admin/listings/{listing_id}/publish",
-                json={"actor_id": ADMIN},
+                json={},
             )
     finally:
         event.remove(engine, "before_cursor_execute", block_notification)
@@ -283,9 +313,10 @@ def test_failed_notification_insert_rolls_back_application_and_history(board):
     event.listen(engine, "before_cursor_execute", block_notification)
     try:
         with pytest.raises(RuntimeError, match="simulated notification"):
+            client.authenticate(EMPLOYER)
             client.post(
                 f"/api/applications/{app_id}/transition",
-                json={"actor_id": EMPLOYER, "action": "mark_reviewed"},
+                json={"action": "mark_reviewed"},
             )
     finally:
         event.remove(engine, "before_cursor_execute", block_notification)
@@ -319,10 +350,10 @@ def test_complete_listing_and_application_workflow(board):
     # reject then resubmit the listing
     rejected = post_ok(client, f"/api/admin/listings/{listing_id}/reject", ADMIN)
     assert rejected["status"] == "rejected"
+    client.authenticate(EMPLOYER)
     edited = client.put(
         f"/api/employer/listings/{listing_id}",
         json={
-            "actor_id": EMPLOYER,
             "title": "Junior Python Developer",
             "company": "Example Ltd",
             "description": "Develop Python applications",
@@ -360,15 +391,15 @@ def test_complete_listing_and_application_workflow(board):
     # check the saved history
     history = client.get(
         f"/api/applications/{application_id}/history",
-        params={"actor_id": GRADUATE},
     )
     assert history.status_code == 200
     assert len(history.json()["history"]) == 1
     assert history.json()["history"][0]["new_status"] == "reviewed"
 
     # check both notifications
+    client.authenticate(GRADUATE)
     inbox = client.get(
-        "/api/graduates/notifications", params={"actor_id": GRADUATE}
+        "/api/graduates/notifications"
     )
     assert inbox.status_code == 200
     messages = [item["message"] for item in inbox.json()["notifications"]]
@@ -377,9 +408,10 @@ def test_complete_listing_and_application_workflow(board):
     assert any("status changed to reviewed" in message for message in messages)
 
     # other employers cant change this application
+    client.authenticate(OTHER_EMPLOYER)
     denied = client.post(
         f"/api/applications/{application_id}/transition",
-        json={"actor_id": OTHER_EMPLOYER, "action": "shortlist"},
+        json={"action": "shortlist"},
     )
     assert denied.status_code == 403
     assert len(rows(engine, Notification)) == 2

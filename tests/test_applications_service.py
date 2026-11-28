@@ -296,19 +296,22 @@ def test_unauthorized_transition_is_forbidden(
 
 @pytest.mark.parametrize("actor_id", [OTHER_EMPLOYER_ID, ADMIN_ID, GRADUATE_ID])
 def test_transition_route_returns_403_for_unauthorized_actor(
-    service_engine, database_activity, actor_id
+    service_engine, database_activity, api_auth, actor_id
 ):
     original = save_application(service_engine)
     app = FastAPI()
     app.include_router(router, prefix="/api")
+    install_auth, authenticate = api_auth
+    install_auth(app)
 
     database_activity["writes"].clear()
     database_activity["commits"].clear()
 
     with TestClient(app) as client:
+        authenticate(client, actor_id)
         response = client.post(
             f"/api/applications/{original['id']}/transition",
-            json={"actor_id": actor_id, "action": "mark_reviewed"},
+            json={"action": "mark_reviewed"},
         )
 
     assert response.status_code == 403
@@ -316,6 +319,32 @@ def test_transition_route_returns_403_for_unauthorized_actor(
     with Session(service_engine) as session:
         assert session.get(Application, original["id"]).model_dump() == original
     assert database_activity == {"writes": [], "commits": []}
+
+
+def test_transition_route_rejects_caller_supplied_actor_id(
+    service_engine, api_auth
+):
+    original = save_application(service_engine)
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+    install_auth, authenticate = api_auth
+    install_auth(app)
+
+    with TestClient(app) as client:
+        authenticate(client, OTHER_EMPLOYER_ID)
+        response = client.post(
+            f"/api/applications/{original['id']}/transition",
+            json={"action": "mark_reviewed", "actor_id": EMPLOYER_ID},
+        )
+
+    assert response.status_code == 422
+    with Session(service_engine) as session:
+        assert session.get(Application, original["id"]).status == "submitted"
+        assert session.exec(
+            select(ApplicationStatusHistory).where(
+                ApplicationStatusHistory.application_id == original["id"]
+            )
+        ).all() == []
 
 
 def test_owner_can_view_listing_applicants(service_engine):
@@ -337,19 +366,35 @@ def test_unauthorized_actor_cannot_view_listing_applicants(
     assert result == {"ok": False, "error": "forbidden"}
 
 
-def test_applicant_route_returns_403_for_cross_employer(service_engine):
+def test_applicant_route_returns_403_for_cross_employer(service_engine, api_auth):
     save_application(service_engine)
     app = FastAPI()
     app.include_router(router, prefix="/api")
+    install_auth, authenticate = api_auth
+    install_auth(app)
 
     with TestClient(app) as client:
+        authenticate(client, OTHER_EMPLOYER_ID)
         response = client.get(
             f"/api/listings/{LISTING_ID}/applicants",
-            params={"actor_id": OTHER_EMPLOYER_ID},
+            params={"actor_id": EMPLOYER_ID},
         )
 
     assert response.status_code == 403
     assert response.json() == {"detail": "forbidden"}
+
+
+def test_applicant_route_requires_authentication(service_engine, api_auth):
+    save_application(service_engine)
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+    install_auth, _ = api_auth
+    install_auth(app)
+
+    with TestClient(app) as client:
+        response = client.get(f"/api/listings/{LISTING_ID}/applicants")
+
+    assert response.status_code == 401
 
 
 def test_admin_can_view_but_cannot_transition_applications(service_engine):
@@ -432,18 +477,20 @@ def test_authorized_history_view_is_exposed(service_engine, actor_id):
     assert result["history"][0]["actor_id"] == EMPLOYER_ID
 
 
-def test_history_route_returns_entry(service_engine):
+def test_history_route_returns_entry(service_engine, api_auth):
     original = save_application(service_engine)
     applications.transition_application(
         EMPLOYER_ID, original["id"], "mark_reviewed"
     )
     app = FastAPI()
     app.include_router(router, prefix="/api")
+    install_auth, authenticate = api_auth
+    install_auth(app)
 
     with TestClient(app) as client:
+        authenticate(client, GRADUATE_ID)
         response = client.get(
             f"/api/applications/{original['id']}/history",
-            params={"actor_id": GRADUATE_ID},
         )
 
     assert response.status_code == 200
